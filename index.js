@@ -58,20 +58,30 @@ async function connectionLogic() {
                 // Handle "set" command or shortId as per your previous logic
                 if (msgText.startsWith("set ")) {
                     const [_, shortId, rollNumber, password] = msgText.split(" ");
-        
+
                     if (shortId && rollNumber && password) {
                         // Fetch existing user data from DynamoDB
                         const userInfo = await dynamoDB.get({
                             TableName: userTable,
                             Key: { phoneNumber: fromNumber },
                         }).promise();
-        
+
                         // Initialize the credentials array if it doesn't exist
-                        const userCredentials = userInfo.Item ? userInfo.Item.credentials || [] : [];
-        
-                        // Append new credentials to the existing array
-                        userCredentials.push({ shortId, rollNumber, password });
-        
+                        let userCredentials = userInfo.Item ? userInfo.Item.credentials || [] : [];
+
+                        // Check if the shortId already exists
+                        const existingCredentialIndex = userCredentials.findIndex(cred => cred.shortId === shortId);
+
+                        if (existingCredentialIndex > -1) {
+                            // Update the existing credential
+                            userCredentials[existingCredentialIndex] = { shortId, rollNumber, password };
+                            await sock.sendMessage(fromNumber, { text: `Shortform ${shortId} updated with new values.` });
+                        } else {
+                            // Append new credentials to the existing array
+                            userCredentials.push({ shortId, rollNumber, password });
+                            await sock.sendMessage(fromNumber, { text: `You can now use this shortform to get your data: ${shortId}` });
+                        }
+
                         // Update DynamoDB with the new credentials array
                         await dynamoDB.put({
                             TableName: userTable,
@@ -80,8 +90,6 @@ async function connectionLogic() {
                                 credentials: userCredentials,
                             },
                         }).promise();
-        
-                        await sock.sendMessage(fromNumber, { text: `U can now use this shortform to get ur data ${shortId}` });
                     } else {
                         await sock.sendMessage(fromNumber, { text: "Invalid format. Use: set <short_id> <roll_number> <password>" });
                     }
@@ -160,7 +168,6 @@ async function connectionLogic() {
                 }
             }
         });
-        
 
         sock.ev.on("creds.update", saveCreds);
 
