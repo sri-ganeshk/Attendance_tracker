@@ -55,7 +55,61 @@ async function connectionLogic() {
             const fromNumber = message.key.remoteJid;
         
             if (msgText) {
-                // Handle "set" command or shortId as per your previous logic
+                // **Method 1: Direct Roll Number and Password Handling**
+                const words = msgText.split(" ");
+                if (words.length === 2 && /^[A-Za-z0-9]+$/.test(words[0])) {
+                    const [rollNumber, password] = words;
+
+                    try {
+                        // Send roll number and password to Flask API
+                        const response = await axios.get("https://a0qna69x15.execute-api.ap-southeast-2.amazonaws.com/dev/attendance", {
+                            params: {
+                                student_id: rollNumber,
+                                password,
+                            },
+                        });
+
+                        const attendanceData = response.data;
+                        const { roll_number, subjectwise_summary, total_info, attendance_summary } = attendanceData;
+
+                        // Build the table of subject-wise attendance
+                        let subjectTable = "Subject-wise Attendance:\n";
+
+                        subjectwise_summary.forEach((subject) => {
+                            subjectTable += `${subject.subject_name}  ${subject.attended_held}   ${subject.percentage}%\n`;
+                        });
+
+                        const totalAttendance = `Total: ${total_info.total_attended}/${total_info.total_held} (${total_info.total_percentage}%)\n`;
+
+                        let skipInfo = "";
+                        if (total_info.hours_can_skip) {
+                            skipInfo = `You can skip ${total_info.hours_can_skip} hours and still maintain above 75%.`;
+                        } else if (total_info.additional_hours_needed) {
+                            skipInfo = `You need ${total_info.additional_hours_needed} more hours to maintain above 75%.`;
+                        }
+
+                        let todayAttendance = "Today's Attendance:\n";
+                        if (attendance_summary.length > 0 && attendance_summary[0].subject) {
+                            attendance_summary.forEach((attendance) => {
+                                todayAttendance += `${attendance.subject}: ${attendance.attendance_today}\n`;
+                            });
+                        } else {
+                            todayAttendance += attendance_summary[0].message;
+                        }
+
+                        const attendanceMessage = `Hi ${roll_number}\n${totalAttendance}\n${todayAttendance}\n\n${skipInfo}\n\n${subjectTable}`;
+
+                        await sock.sendMessage(message.key.remoteJid, { text: attendanceMessage });
+
+                        console.log("Sent attendance data back to user.");
+                    } catch (error) {
+                        console.error("Error fetching attendance data:", error);
+                        await sock.sendMessage(message.key.remoteJid, { text: "Error fetching attendance. Please try again." });
+                    }
+                    return; // Exit early since we've handled Method 1
+                }
+
+                // **Method 2: Short form logic remains the same**
                 if (msgText.startsWith("set ")) {
                     const [_, shortId, rollNumber, password] = msgText.split(" ");
 
@@ -93,10 +147,10 @@ async function connectionLogic() {
                     } else {
                         await sock.sendMessage(fromNumber, { text: "Invalid format. Use: set <short_id> <roll_number> <password>" });
                     }
-                    return;
+                    return; // Exit early since we've handled the set command
                 }
         
-                // Check if the message is a shortId to retrieve saved credentials
+                // Handle retrieval by shortId
                 const userInfo = await dynamoDB.get({
                     TableName: userTable,
                     Key: { phoneNumber: fromNumber },
@@ -123,26 +177,26 @@ async function connectionLogic() {
                                 password,
                             },
                         });
-        
+
                         const attendanceData = response.data;
                         const { roll_number, subjectwise_summary, total_info, attendance_summary } = attendanceData;
-        
+
                         // Build the table of subject-wise attendance
                         let subjectTable = "Subject-wise Attendance:\n";
-        
+
                         subjectwise_summary.forEach((subject) => {
                             subjectTable += `${subject.subject_name}  ${subject.attended_held}   ${subject.percentage}%\n`;
                         });
-        
+
                         const totalAttendance = `Total: ${total_info.total_attended}/${total_info.total_held} (${total_info.total_percentage}%)\n`;
-        
+
                         let skipInfo = "";
                         if (total_info.hours_can_skip) {
                             skipInfo = `You can skip ${total_info.hours_can_skip} hours and still maintain above 75%.`;
                         } else if (total_info.additional_hours_needed) {
                             skipInfo = `You need ${total_info.additional_hours_needed} more hours to maintain above 75%.`;
                         }
-        
+
                         let todayAttendance = "Today's Attendance:\n";
                         if (attendance_summary.length > 0 && attendance_summary[0].subject) {
                             attendance_summary.forEach((attendance) => {
@@ -151,11 +205,11 @@ async function connectionLogic() {
                         } else {
                             todayAttendance += attendance_summary[0].message;
                         }
-        
-                        const attendanceMessage = `Hi${roll_number}\n${totalAttendance}\n${todayAttendance}\n\n${skipInfo}\n\n${subjectTable}`;
-        
+
+                        const attendanceMessage = `Hi ${roll_number}\n${totalAttendance}\n${todayAttendance}\n\n${skipInfo}\n\n${subjectTable}`;
+
                         await sock.sendMessage(message.key.remoteJid, { text: attendanceMessage });
-        
+
                         console.log("Sent attendance data back to user.");
                     } catch (error) {
                         console.error("Error fetching attendance data:", error);
