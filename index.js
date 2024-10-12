@@ -110,7 +110,7 @@ async function connectionLogic() {
                 }
 
                 // **Method 2: Short form logic remains the same**
-                if (msgText.startsWith("set ")) {
+                if (msgText.toLowerCase().startsWith("set ")) {
                     const [_, shortId, rollNumber, password] = msgText.split(" ");
 
                     if (shortId && rollNumber && password) {
