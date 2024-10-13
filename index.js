@@ -109,46 +109,72 @@ async function connectionLogic() {
                     return; // Exit early since we've handled Method 1
                 }
 
-                // **Method 2: Short form logic remains the same**
+                // **Method 2: Short form logic with validation**
                 if (msgText.toLowerCase().startsWith("set ")) {
                     const [_, shortId, rollNumber, password] = msgText.split(" ");
-
+                
                     if (shortId && rollNumber && password) {
-                        // Fetch existing user data from DynamoDB
-                        const userInfo = await dynamoDB.get({
-                            TableName: userTable,
-                            Key: { phoneNumber: fromNumber },
-                        }).promise();
-
-                        // Initialize the credentials array if it doesn't exist
-                        let userCredentials = userInfo.Item ? userInfo.Item.credentials || [] : [];
-
-                        // Check if the shortId already exists
-                        const existingCredentialIndex = userCredentials.findIndex(cred => cred.shortId === shortId);
-
-                        if (existingCredentialIndex > -1) {
-                            // Update the existing credential
-                            userCredentials[existingCredentialIndex] = { shortId, rollNumber, password };
-                            await sock.sendMessage(fromNumber, { text: `Shortform ${shortId} updated with new values.` });
-                        } else {
-                            // Append new credentials to the existing array
-                            userCredentials.push({ shortId, rollNumber, password });
-                            await sock.sendMessage(fromNumber, { text: `You can now use this shortform to get your data: ${shortId}` });
+                        try {
+                            // Validate the roll number and password with the API
+                            const response = await axios.get("https://a0qna69x15.execute-api.ap-southeast-2.amazonaws.com/dev/attendance", {
+                                params: {
+                                    student_id: rollNumber,
+                                    password,
+                                },
+                            });
+                
+                            // If the API call succeeds, proceed to store the short form
+                            const attendanceData = response.data;
+                
+                            // Fetch existing user data from DynamoDB
+                            const userInfo = await dynamoDB.get({
+                                TableName: userTable,
+                                Key: { phoneNumber: fromNumber },
+                            }).promise();
+                
+                            // Initialize the credentials array if it doesn't exist
+                            let userCredentials = userInfo.Item ? userInfo.Item.credentials || [] : [];
+                
+                            // Check if the rollNumber already exists
+                            const existingRollNumber = userCredentials.find(cred => cred.rollNumber === rollNumber);
+                
+                            if (existingRollNumber) {
+                                // If rollNumber exists, return the shortId associated with it
+                                await sock.sendMessage(fromNumber, { text: `This roll number is already linked to the short form: ${existingRollNumber.shortId}\nuse can delete this shortform and create new one\nnow to delete this shortform you need to type and send\ndelete ${existingRollNumber.shortId}` });
+                            } else {
+                                // Check if the shortId already exists
+                                const existingShortId = userCredentials.find(cred => cred.shortId === shortId);
+                
+                                if (existingShortId) {
+                                    // Update the shortId's rollNumber and password with the new data
+                                    existingShortId.rollNumber = rollNumber;
+                                    existingShortId.password = password;
+                                    await sock.sendMessage(fromNumber, { text: `Updated the short form ${shortId} with new roll number and password.` });
+                                } else {
+                                    // Append new credentials to the existing array
+                                    userCredentials.push({ shortId, rollNumber, password });
+                                    await sock.sendMessage(fromNumber, { text: `You can now use this short form to get your attendance: ${shortId}` });
+                                }
+                
+                                // Update DynamoDB with the new credentials array
+                                await dynamoDB.put({
+                                    TableName: userTable,
+                                    Item: {
+                                        phoneNumber: fromNumber,
+                                        credentials: userCredentials,
+                                    },
+                                }).promise();
+                            }
+                        } catch (error) {
+                            console.error("Error validating credentials:", error);
+                            await sock.sendMessage(fromNumber, { text: "Invalid roll number or password. Please try again." });
                         }
-
-                        // Update DynamoDB with the new credentials array
-                        await dynamoDB.put({
-                            TableName: userTable,
-                            Item: {
-                                phoneNumber: fromNumber,
-                                credentials: userCredentials,
-                            },
-                        }).promise();
                     } else {
                         await sock.sendMessage(fromNumber, { text: "Invalid format. Use: set <short_id> <roll_number> <password>" });
                     }
                     return; // Exit early since we've handled the set command
                 }
+                
         
                 // Handle retrieval by shortId
                 const userInfo = await dynamoDB.get({
@@ -216,8 +242,51 @@ async function connectionLogic() {
                         await sock.sendMessage(message.key.remoteJid, { text: "Error fetching attendance. Please try again." });
                     }
                 } else {
+                    // **Display All Shortforms**
+                    if (msgText.toLowerCase() === "shortforms") {
+                        if (userInfo.Item && userInfo.Item.credentials.length > 0) {
+                            let shortformMessage = "Your Saved Short Forms:\n";
+                            userInfo.Item.credentials.forEach(cred => {
+                                shortformMessage += `Short ID: ${cred.shortId} - Roll Number: ${cred.rollNumber}\n`;
+                            });
+                            await sock.sendMessage(fromNumber, { text: shortformMessage });
+                        } else {
+                            await sock.sendMessage(fromNumber, { text: "You have no saved short forms." });
+                        }
+                        return; // Exit early after showing short forms
+                    }
+
+                    // **Delete a Shortform**
+                    if (msgText.toLowerCase().startsWith("delete ")) {
+                        const shortIdToDelete = msgText.split(" ")[1];
+                        if (shortIdToDelete) {
+                            if (userInfo.Item && userInfo.Item.credentials.length > 0) {
+                                const updatedCredentials = userInfo.Item.credentials.filter(cred => cred.shortId !== shortIdToDelete);
+                                
+                                if (updatedCredentials.length < userInfo.Item.credentials.length) {
+                                    await dynamoDB.put({
+                                        TableName: userTable,
+                                        Item: {
+                                            phoneNumber: fromNumber,
+                                            credentials: updatedCredentials,
+                                        },
+                                    }).promise();
+                                    await sock.sendMessage(fromNumber, { text: `Shortform ${shortIdToDelete} has been deleted.` });
+                                } else {
+                                    await sock.sendMessage(fromNumber, { text: `No shortform found with the ID: ${shortIdToDelete}` });
+                                }
+                            } else {
+                                await sock.sendMessage(fromNumber, { text: "You have no saved short forms to delete." });
+                            }
+                        } else {
+                            await sock.sendMessage(fromNumber, { text: "Invalid format. Use: delete <short_id>" });
+                        }
+                        return; // Exit after handling delete
+                    }
+
+                    // **Send Default Message if Command Not Recognized**
                     await sock.sendMessage(message.key.remoteJid, {
-                        text: `👋 *Hi there!*\n\n🤖 *Welcome to the Attendance Bot* for our college.\n\nYou can use it in two ways:\n*Method 1: Quick Data*\nSend your *roll number* followed by your *password* to get attendance.\n_Example:_\n\`22L31A0596 password\`\n\n*Method 2: Short Form*\nSave a short form for easier use.\nTo save:\n\`set short_form roll_number password\`\n_Example:_\n\`set 596 22L31A0596 password\`\nAfter saving, just send the short form:\n_Example:_\n\`596\`\n\n📋 *Tips:*\n- Check your inputs carefully.\n- Use the short form to save time next time!\n\nEnjoy! 😊`
+                        text: `👋 *Hi there!*\n\n🤖 *Welcome to the Attendance Bot* for our college.\n\nYou can use it in two ways:\n*Method 1: Quick Data*\nSend your *roll number* followed by your *password* to get attendance.\n_Example:_\n\`22L31A0596 password\`\n\n*Method 2: Short Form*\nSave a short form for easier use.\nTo save:\n\`set short_form roll_number password\`\n_Example:_\n\`set 596 22L31A0596 password\`\nAfter saving, just send the short form:\n_Example:_\n\`596\`\n\n📋 *Tips:*\n- Check your inputs carefully.\n- Use the short form to save time next time!\n- You can see all your shortforms with keyword shortforms\n\nEnjoy! 😊`
                     });
                 }
             }
