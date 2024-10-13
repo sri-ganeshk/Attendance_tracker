@@ -104,7 +104,7 @@ async function connectionLogic() {
                         console.log("Sent attendance data back to user.");
                     } catch (error) {
                         console.error("Error fetching attendance data:", error);
-                        await sock.sendMessage(message.key.remoteJid, { text: "Invaild roll_number or password*\n\nFor further assistance, [click here for help](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
+                        await sock.sendMessage(message.key.remoteJid, { text: "Invaild roll_number or password\n\nFor further assistance, click here for help(https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
                     }
                     return; // Exit early since we've handled Method 1
                 }
@@ -144,7 +144,7 @@ async function connectionLogic() {
                                     text: `⚠️ *This roll number is already linked to the short form:* ${existingRollNumber.shortId}\n\n` +
                                           `➡️ *To delete this short form and create a new one, follow these steps:*\n` +
                                           `➡️ Type and send: *delete ${existingRollNumber.shortId}*\n\n` +
-                                          `After deleting, you can create a new short form with the same roll number.*\n\nFor further assistance, [click here for help](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).`
+                                          `After deleting, you can create a new short form with the same roll number.\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).`
                                 });
                             } else {
                                 // Check if the shortId already exists
@@ -175,7 +175,7 @@ async function connectionLogic() {
                             await sock.sendMessage(fromNumber, { text: "Invalid roll number or password. Please try again." });
                         }
                     } else {
-                        await sock.sendMessage(fromNumber, { text: "Invalid format. Use: set <short_id> <roll_number> <password>*\n\nFor further assistance, [click here for help](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
+                        await sock.sendMessage(fromNumber, { text: "Invalid format. Use: set <short_id> <roll_number> <password>\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
                     }
                     return; // Exit early since we've handled the set command
                 }
@@ -254,10 +254,10 @@ async function connectionLogic() {
                             userInfo.Item.credentials.forEach(cred => {
                                 shortformMessage += `Short ID: ${cred.shortId} - Roll Number: ${cred.rollNumber}\n`;
                             });
-                            shortformMessage+= `\n➡️ If want to delete the shortform use keyword delete \n➡️ Eg. delete shortform_id*\n\nFor further assistance, [click here for help](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).`
+                            shortformMessage+= `\n➡️ If want to delete the shortform use keyword delete \n➡️ Eg. delete shortform_id\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).`
                             await sock.sendMessage(fromNumber, { text: shortformMessage });
                         } else {
-                            await sock.sendMessage(fromNumber, { text: "You have no saved short forms." });
+                            await sock.sendMessage(fromNumber, { text: "You have no saved short forms.\n\nFor further assistance, click here for help(https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
                         }
                         return; // Exit early after showing short forms
                     }
@@ -279,20 +279,20 @@ async function connectionLogic() {
                                     }).promise();
                                     await sock.sendMessage(fromNumber, { text: `Shortform ${shortIdToDelete} has been deleted.` });
                                 } else {
-                                    await sock.sendMessage(fromNumber, { text: `No shortform found with the ID: ${shortIdToDelete}*\n\nFor further assistance, [click here for help](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).` });
+                                    await sock.sendMessage(fromNumber, { text: `No shortform found with the ID: ${shortIdToDelete}\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).` });
                                 }
                             } else {
-                                await sock.sendMessage(fromNumber, { text: "You have no saved short forms to delete.*\n\nFor further assistance, [click here for help](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
+                                await sock.sendMessage(fromNumber, { text: "You have no saved short forms to delete.\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
                             }
                         } else {
-                            await sock.sendMessage(fromNumber, { text: "Invalid format. Use: delete <short_id>*\n\nFor further assistance, [click here for help](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
+                            await sock.sendMessage(fromNumber, { text: "Invalid format. Use: delete <short_id>\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
                         }
                         return; // Exit after handling delete
                     }
 
                     // **Send Default Message if Command Not Recognized**
                     await sock.sendMessage(message.key.remoteJid, {
-                        text: `👋 *Hi there!*\n\n🤖 *Welcome to the Attendance Bot* for our college.\n\nYou can use it in two ways:\n*Method 1: Quick Data*\nSend your *roll number* followed by your *password* to get attendance.\n_Example:_\n\`22L31A0596 password\`\n\n*Method 2: Short Form*\nSave a short form for easier use.\nTo save:\n\`set short_form roll_number password\`\n_Example:_\n\`set 596 22L31A0596 password\`\nAfter saving, just send the short form:\n_Example:_\n\`596\`\n\n📋 *Tips:*\n- Check your inputs carefully.\n- Use the short form to save time next time!\n- You can see all your shortforms with keyword shortforms*\n\nFor further assistance, [click here for help](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).\n\nEnjoy! 😊`
+                        text: `👋 *Hi there!*\n\n🤖 *Welcome to the Attendance Bot* for our college.\n\nYou can use it in two ways:\n*Method 1: Quick Data*\nSend your *roll number* followed by your *password* to get attendance.\n_Example:_\n\`22L31A0596 password\`\n\n*Method 2: Short Form*\nSave a short form for easier use.\nTo save:\n\`set short_form roll_number password\`\n_Example:_\n\`set 596 22L31A0596 password\`\nAfter saving, just send the short form:\n_Example:_\n\`596\`\n\n📋 *Tips:*\n- Check your inputs carefully.\n- Use the short form to save time next time!\n- You can see all your shortforms with keyword shortforms\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).\n\nEnjoy! 😊`
                     });
                 }
             }
