@@ -158,7 +158,7 @@ async function connectionLogic() {
                                 } else {
                                     // Append new credentials to the existing array
                                     userCredentials.push({ shortId, rollNumber, password });
-                                    await sock.sendMessage(fromNumber, { text: `You can now use this shortform : ${shortId} to get your attendance \n\n➡️ If you want to get all ur shortforms type \n➡️ Keyword - *shortforms*` });
+                                    await sock.sendMessage(fromNumber, { text: `You can now use this shortform : ${shortId} to get your attendance \n\n➡️ If you want to get all ur shortforms id \n➡️ Keyword - *shortforms*` });
                                 }
                 
                                 // Update DynamoDB with the new credentials array
