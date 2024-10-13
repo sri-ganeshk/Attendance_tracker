@@ -158,7 +158,7 @@ async function connectionLogic() {
                                 } else {
                                     // Append new credentials to the existing array
                                     userCredentials.push({ shortId, rollNumber, password });
-                                    await sock.sendMessage(fromNumber, { text: `You can now use this short form to get your attendance: ${shortId}` });
+                                    await sock.sendMessage(fromNumber, { text: `You can now use this shortform : ${shortId} to get your attendance \n\n➡️ If you want to get all ur shortforms type \n➡️ Keyword - *shortforms*` });
                                 }
                 
                                 // Update DynamoDB with the new credentials array
@@ -254,6 +254,7 @@ async function connectionLogic() {
                             userInfo.Item.credentials.forEach(cred => {
                                 shortformMessage += `Short ID: ${cred.shortId} - Roll Number: ${cred.rollNumber}\n`;
                             });
+                            shortformMessage+= `\n➡️ If want to delete the shortform use keyword delete \n➡️ Eg. delete shortform_id`
                             await sock.sendMessage(fromNumber, { text: shortformMessage });
                         } else {
                             await sock.sendMessage(fromNumber, { text: "You have no saved short forms." });
