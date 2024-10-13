@@ -57,7 +57,7 @@ async function connectionLogic() {
             if (msgText) {
                 // **Method 1: Direct Roll Number and Password Handling**
                 const words = msgText.split(" ");
-                if (words.length === 2 && /^[A-Za-z0-9]+$/.test(words[0])) {
+                if (words.length === 2 &&/^[0-9]/.test(words[0])) {
                     const [rollNumber, password] = words;
 
                     try {
