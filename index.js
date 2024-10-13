@@ -140,7 +140,12 @@ async function connectionLogic() {
                 
                             if (existingRollNumber) {
                                 // If rollNumber exists, return the shortId associated with it
-                                await sock.sendMessage(fromNumber, { text: `This roll number is already linked to the short form: ${existingRollNumber.shortId}\nuse can delete this shortform and create new one\nnow to delete this shortform you need to type and send\ndelete ${existingRollNumber.shortId}` });
+                                await sock.sendMessage(fromNumber,  {
+                                    text: `⚠️ *This roll number is already linked to the short form:* ${existingRollNumber.shortId}\n\n` +
+                                          `➡️ *To delete this short form and create a new one, follow these steps:*\n` +
+                                          `➡️ Type and send: *delete ${existingRollNumber.shortId}*\n\n` +
+                                          `After deleting, you can create a new short form with the same roll number.`
+                                });
                             } else {
                                 // Check if the shortId already exists
                                 const existingShortId = userCredentials.find(cred => cred.shortId === shortId);
