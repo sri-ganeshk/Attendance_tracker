@@ -55,6 +55,70 @@ async function connectionLogic() {
             const fromNumber = message.key.remoteJid;
         
             if (msgText) {
+                // **Skip Option: skip <shortform> <hours>**
+                if (msgText.toLowerCase().startsWith("skip ")) {
+                    const words = msgText.split(" ");
+                    if (words.length === 3) {
+                        const [, shortId, hoursStr] = words;
+                        const skipHours = parseInt(hoursStr, 10);
+
+                        if (isNaN(skipHours)) {
+                            await sock.sendMessage(fromNumber, { text: "❌ Invalid hours. Please provide a numeric value. For example: skip 596 3" });
+                            return;
+                        }
+
+                        // Retrieve stored credentials for the shortform
+                        const userInfo = await dynamoDB.get({
+                            TableName: userTable,
+                            Key: { phoneNumber: fromNumber },
+                        }).promise();
+        
+                        if (userInfo.Item) {
+                            const matchingCredential = userInfo.Item.credentials.find(cred => cred.shortId === shortId);
+        
+                            if (matchingCredential) {
+                                const { rollNumber, password } = matchingCredential;
+        
+                                try {
+                                    // Call the skip API endpoint
+                                    const response = await axios.get("https://a0qna69x15.execute-api.ap-southeast-2.amazonaws.com/dev/skip", {
+                                        params: {
+                                            student_id: rollNumber,
+                                            password,
+                                            hours: skipHours
+                                        },
+                                    });
+        
+                                    const data = response.data;
+                                    let skipMessage = `✨ *Attendance Update* ✨\n\n` +
+                                        `Original Attendance: ${data.original_attendance_percentage}%\n` +
+                                        `New Attendance: ${data.new_attendance_percentage}%\n` +
+                                        `Status: ${data.status} ✅\n\n`;
+        
+                                    if (data.status === "safe to skip") {
+                                        skipMessage += `You can skip an additional ${data.hours_can_skip_after} hours. 👍`;
+                                    } else if (data.status === "needs to attend more") {
+                                        skipMessage += `You need ${data.additional_hours_needed_after} more hours to reach 75%. 📚`;
+                                    }
+        
+                                    await sock.sendMessage(fromNumber, { text: skipMessage });
+                                    console.log("Sent skip attendance data back to user.");
+                                } catch (error) {
+                                    console.error("Error fetching skip attendance data:", error);
+                                    await sock.sendMessage(fromNumber, { text: "❌ Error fetching skip attendance. Please try again." });
+                                }
+                            } else {
+                                await sock.sendMessage(fromNumber, { text: "❌ No matching short form found. Please check your shortform ID." });
+                            }
+                        } else {
+                            await sock.sendMessage(fromNumber, { text: "❌ No saved credentials found. Please set up your short form first." });
+                        }
+                    } else {
+                        await sock.sendMessage(fromNumber, { text: "❌ Invalid format. Use: skip <shortform> <hours>\nFor example: skip 596 3" });
+                    }
+                    return; // Exit early after handling the skip command
+                }
+                
                 // **Method 1: Direct Roll Number and Password Handling**
                 const words = msgText.split(" ");
                 if (words.length === 2 && /^[0-9]/.test(words[0])) {
@@ -74,7 +138,6 @@ async function connectionLogic() {
 
                         // Build the table of subject-wise attendance
                         let subjectTable = "Subject-wise Attendance:\n";
-
                         subjectwise_summary.forEach((subject) => {
                             subjectTable += `${subject.subject_name}  ${subject.attended_held}   ${subject.percentage}%\n`;
                         });
@@ -100,11 +163,10 @@ async function connectionLogic() {
                         const attendanceMessage = `Hi ${roll_number}\n${totalAttendance}\n${todayAttendance}\n\n${skipInfo}\n\n${subjectTable}`;
 
                         await sock.sendMessage(message.key.remoteJid, { text: attendanceMessage });
-
                         console.log("Sent attendance data back to user.");
                     } catch (error) {
                         console.error("Error fetching attendance data:", error);
-                        await sock.sendMessage(message.key.remoteJid, { text: "Invalid roll_number or password\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
+                        await sock.sendMessage(message.key.remoteJid, { text: "❌ Invalid roll_number or password\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
                     }
                     return; // Exit early since we've handled Method 1
                 }
@@ -158,7 +220,7 @@ async function connectionLogic() {
                                 } else {
                                     // Append new credentials to the existing array
                                     userCredentials.push({ shortId, rollNumber, password });
-                                    await sock.sendMessage(fromNumber, { text: `You can now use this shortform : ${shortId} to get your attendance \n\n➡️ If you want to get all your shortform IDs, send the keyword *shortforms*` });
+                                    await sock.sendMessage(fromNumber, { text: `✅ You can now use this shortform: ${shortId} to get your attendance.\n\n➡️ To get all your shortform IDs, type: *shortforms*` });
                                 }
                 
                                 // Update DynamoDB with the new credentials array
@@ -172,72 +234,15 @@ async function connectionLogic() {
                             }
                         } catch (error) {
                             console.error("Error validating credentials:", error);
-                            await sock.sendMessage(fromNumber, { text: "Invalid roll number or password. Please try again." });
+                            await sock.sendMessage(fromNumber, { text: "❌ Invalid roll number or password. Please try again." });
                         }
                     } else {
-                        await sock.sendMessage(fromNumber, { text: "Invalid format. Use: set <short_id> <roll_number> <password>\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
+                        await sock.sendMessage(fromNumber, { text: "❌ Invalid format. Use: set <short_id> <roll_number> <password>\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
                     }
                     return; // Exit early since we've handled the set command
                 }
                 
-                // **Skip Command: skip <shortform> <hours>**
-                if (msgText.toLowerCase().startsWith("skip ")) {
-                    const [_, shortId, hoursStr] = msgText.split(" ");
-                    const skipHours = parseInt(hoursStr, 10);
-                    
-                    if (!shortId || isNaN(skipHours)) {
-                        await sock.sendMessage(fromNumber, { text: "Invalid format. Use: skip <shortform> <hours>\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
-                        return;
-                    }
-                    
-                    // Fetch user credentials from DynamoDB
-                    const userInfo = await dynamoDB.get({
-                        TableName: userTable,
-                        Key: { phoneNumber: fromNumber },
-                    }).promise();
-
-                    if (userInfo.Item && userInfo.Item.credentials.length > 0) {
-                        const matchingCredential = userInfo.Item.credentials.find(cred => cred.shortId === shortId);
-                        if (matchingCredential) {
-                            const { rollNumber, password } = matchingCredential;
-                            try {
-                                // Call the skip endpoint on the Flask API
-                                const response = await axios.get("https://a0qna69x15.execute-api.ap-southeast-2.amazonaws.com/dev/skip", {
-                                    params: {
-                                        student_id: rollNumber,
-                                        password,
-                                        hours: skipHours,
-                                    },
-                                });
-
-                                const skipResult = response.data;
-                                const { original_attendance_percentage, new_attendance_percentage, status } = skipResult;
-                                let extraInfo = "";
-                                if (status === "safe to skip" && skipResult.hours_can_skip_after !== undefined) {
-                                    extraInfo = `\nYou can skip an additional ${skipResult.hours_can_skip_after} hour(s) after this adjustment.`;
-                                } else if (status === "needs to attend more" && skipResult.additional_hours_needed_after !== undefined) {
-                                    extraInfo = `\nYou need to attend ${skipResult.additional_hours_needed_after} more hour(s) to be safe.`;
-                                }
-
-                                const skipMessage = `Original Attendance: ${original_attendance_percentage}%\nNew Attendance after skipping ${skipHours} hour(s): ${new_attendance_percentage}%\nStatus: ${status}${extraInfo}`;
-
-                                await sock.sendMessage(fromNumber, { text: skipMessage });
-                                console.log("Sent skip attendance data back to user.");
-                            } catch (error) {
-                                console.error("Error fetching skip attendance data:", error);
-                                await sock.sendMessage(fromNumber, { text: "Error calculating skip attendance. Please try again." });
-                            }
-                        } else {
-                            await sock.sendMessage(fromNumber, { text: "No matching shortform found. Please check your shortform ID." });
-                        }
-                    } else {
-                        await sock.sendMessage(fromNumber, { text: "You have no saved short forms. Please set one up first." });
-                    }
-                    return; // Exit early after handling skip command
-                }
-
-                // **Handle retrieval by shortId**
-                // Fetch user info from DynamoDB if not already fetched
+                // Handle retrieval by shortId
                 const userInfo = await dynamoDB.get({
                     TableName: userTable,
                     Key: { phoneNumber: fromNumber },
@@ -270,7 +275,6 @@ async function connectionLogic() {
 
                         // Build the table of subject-wise attendance
                         let subjectTable = "Subject-wise Attendance:\n";
-
                         subjectwise_summary.forEach((subject) => {
                             subjectTable += `${subject.subject_name}  ${subject.attended_held}   ${subject.percentage}%\n`;
                         });
@@ -296,24 +300,23 @@ async function connectionLogic() {
                         const attendanceMessage = `Hi ${roll_number}\n${totalAttendance}\n${todayAttendance}\n\n${skipInfo}\n\n${subjectTable}`;
 
                         await sock.sendMessage(message.key.remoteJid, { text: attendanceMessage });
-
                         console.log("Sent attendance data back to user.");
                     } catch (error) {
                         console.error("Error fetching attendance data:", error);
-                        await sock.sendMessage(message.key.remoteJid, { text: "Error fetching attendance. Please try again." });
+                        await sock.sendMessage(message.key.remoteJid, { text: "❌ Error fetching attendance. Please try again." });
                     }
                 } else {
                     // **Display All Shortforms**
                     if (msgText.toLowerCase() === "shortforms") {
                         if (userInfo.Item && userInfo.Item.credentials.length > 0) {
-                            let shortformMessage = "Your Saved Short Forms:\n";
+                            let shortformMessage = "📋 *Your Saved Short Forms:*\n";
                             userInfo.Item.credentials.forEach(cred => {
-                                shortformMessage += `Short ID: ${cred.shortId} - Roll Number: ${cred.rollNumber}\n`;
+                                shortformMessage += `• Short ID: ${cred.shortId} - Roll Number: ${cred.rollNumber}\n`;
                             });
-                            shortformMessage += `\n➡️ To delete a shortform, use: delete <shortform_id>\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).`
+                            shortformMessage += `\n➡️ To delete a shortform, type: delete <shortform_id>\nFor help: [Link](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)`;
                             await sock.sendMessage(fromNumber, { text: shortformMessage });
                         } else {
-                            await sock.sendMessage(fromNumber, { text: "You have no saved short forms.\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
+                            await sock.sendMessage(fromNumber, { text: "❌ You have no saved short forms.\n\nFor help: [Link](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)" });
                         }
                         return; // Exit early after showing short forms
                     }
@@ -333,22 +336,22 @@ async function connectionLogic() {
                                             credentials: updatedCredentials,
                                         },
                                     }).promise();
-                                    await sock.sendMessage(fromNumber, { text: `Shortform ${shortIdToDelete} has been deleted.` });
+                                    await sock.sendMessage(fromNumber, { text: `✅ Shortform ${shortIdToDelete} has been deleted.` });
                                 } else {
-                                    await sock.sendMessage(fromNumber, { text: `No shortform found with the ID: ${shortIdToDelete}\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).` });
+                                    await sock.sendMessage(fromNumber, { text: `❌ No shortform found with the ID: ${shortIdToDelete}\n\nFor help: [Link](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)` });
                                 }
                             } else {
-                                await sock.sendMessage(fromNumber, { text: "You have no saved short forms to delete.\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
+                                await sock.sendMessage(fromNumber, { text: "❌ You have no saved short forms to delete.\n\nFor help: [Link](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)" });
                             }
                         } else {
-                            await sock.sendMessage(fromNumber, { text: "Invalid format. Use: delete <short_id>\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)." });
+                            await sock.sendMessage(fromNumber, { text: "❌ Invalid format. Use: delete <short_id>\n\nFor help: [Link](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)" });
                         }
                         return; // Exit after handling delete
                     }
 
                     // **Send Default Message if Command Not Recognized**
                     await sock.sendMessage(message.key.remoteJid, {
-                        text: `👋 *Hi there!*\n\n🤖 *Welcome to the Attendance Bot* for our college.\n\nYou can use it in multiple ways:\n*Method 1: Quick Data*\nSend your *roll number* followed by your *password* to get attendance.\n_Example:_\n\`22L31A0596 password\`\n\n*Method 2: Short Form*\nSave a short form for easier use.\nTo save:\n\`set short_form roll_number password\`\n_Example:_\n\`set 596 22L31A0596 password\`\nAfter saving, just send the short form (e.g., \`596\`).\n\n*Skip Option:*\nTo check attendance after skipping classes, send:\n\`skip <shortform> <hours>\`\n_Example:_\n\`skip 596 3\`\n\n📋 *Tips:*\n- Check your inputs carefully.\n- Use the short form to save time next time!\n- You can see all your shortforms with the keyword *shortforms*\n\nFor further assistance, click here for help (https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).\n\nEnjoy! 😊`
+                        text: `👋 *Hi there!*\n\n🤖 *Welcome to the Attendance Bot* for our college.\n\nYou can use it in two ways:\n*Method 1: Quick Data*\nSend your *roll number* followed by your *password* to get attendance.\n_Example:_\n\`22L31A0596 password\`\n\n*Method 2: Short Form*\nSave a short form for easier use.\nTo save:\n\`set short_form roll_number password\`\n_Example:_\n\`set 596 22L31A0596 password\`\nAfter saving, just send the short form:\n_Example:_\n\`596\`\n\n*Skip Option:*\nTo check your attendance after skipping hours, send:\n\`skip <shortform> <hours>\`\n_Example:_\n\`skip 596 3\`\n\n📋 *Tips:*\n- Check your inputs carefully.\n- Use the short form to save time next time!\n- You can see all your short forms with keyword *shortforms*\n\nFor help: [Link](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing)\n\nEnjoy! 😊`
                     });
                 }
             }
