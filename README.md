@@ -1,113 +1,140 @@
-# WhatsApp Attendance Bot
+# Vignan IT Attendance Tracker
 
-A WhatsApp-based attendance tracking system for college students to quickly check their attendance, manage credentials, and simulate attendance changes.
-
-## 🌟 Features
-
-- **Instant Attendance Checking**: Get your attendance details directly via WhatsApp
-- **Credential Management**: Save your roll number and password with easy-to-remember shortforms
-- **Skip Simulation**: Calculate your attendance after hypothetically skipping classes
-- **Today's Attendance**: Check which classes you attended today
-- **Subject-wise Breakdown**: See attendance percentages for each subject
-- **Total Attendance Overview**: Get your overall attendance percentage
-
-## 📱 Usage Guide
-
-### Method 1: Direct Roll Number and Password
-
-Send your roll number and password directly:
-```
-22L31A0596 password123
-```
-
-### Method 2: Using Short Forms
-
-#### Save credentials with a short form:
-```
-set 596 22L31A0596 password123
-```
-
-#### Check attendance using saved short form:
-```
-596
-```
-
-### Additional Commands
-
-#### Check attendance after skipping hours:
-```
-skip 596 3
-```
-This shows how your attendance would look after skipping 3 hours
-
-#### View all your saved short forms:
-```
-shortforms
-```
-
-#### Delete a saved short form:
-```
-delete 596
-```
-
-## 💾 Technical Information
-
-### Architecture
-
-- **Frontend**: WhatsApp messenger interface
-- **Backend**: Node.js with [Baileys](https://github.com/WhiskeySockets/Baileys) WhatsApp Web API
-- **Database**: AWS DynamoDB for credential and session storage
-- **API**: RESTful API endpoints for attendance data retrieval
-
-### DynamoDB Tables
-
-1. **auth_info_baileys**: Stores WhatsApp authentication states
-2. **user_info**: Stores user credentials and short forms
-
-### Environment Requirements
-
-- Node.js v14+
-- AWS account with DynamoDB access
-- Internet connectivity for WhatsApp Web
-
-## 🔧 Setup for Developers
-
-1. Clone the repository
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Configure AWS credentials
-4. Create required DynamoDB tables
-5. Run the application:
-   ```
-   node index.js
-   ```
-6. Scan the QR code that appears in the terminal with WhatsApp
-
-## 📋 Response Format
-
-Attendance responses include:
-- Student roll number
-- Total attendance percentage
-- Today's attendance record
-- Skip information (hours you can safely skip)
-- Subject-wise attendance details
-
-## ⚠️ Troubleshooting
-
-- **Authentication Issues**: Rescan the QR code if connection is lost
-- **Invalid Credentials**: Double-check your roll number and password
-- **API Connection Errors**: Ensure internet connectivity
-
-## 🔐 Security Note
-
-Your credentials are stored securely in AWS DynamoDB with limited access. The application only uses your credentials to fetch attendance data and does not share them with any third parties.
-
-## 📚 Help Documentation
-
-For detailed instructions and troubleshooting, refer to our [help documentation](https://docs.google.com/document/d/185hlWtDBe9BICEBXIqC2EsRZV0N_uBRgdiAjP0Zo2YE/edit?usp=sharing).
+> Check your college attendance instantly via **Telegram** or **WhatsApp** — powered by a serverless Python API on AWS Lambda.
 
 ---
 
-*Made with ❤️ for easy attendance tracking*
+## How It Works
+
+```mermaid
+flowchart TD
+    U["👤 You\n(Telegram / WhatsApp)"]
+    B["🤖 Bot\n(Node.js / TypeScript)"]
+    A["⚡ Flask API\n(AWS Lambda + API Gateway)"]
+    P["🏫 Vignan IT Portal"]
+
+    U -->|sends command| B
+    B -->|HTTP GET| A
+    A -->|scrapes| P
+    P -->|HTML| A
+    A -->|JSON| B
+    B -->|formatted message| U
+```
+
+
+---
+
+## Repo Structure
+
+```
+Attendance_tracker/
+├── api/           Flask scraper — deployed to AWS Lambda via Zappa
+├── telegram/      Telegram bot  — node-telegram-bot-api
+└── whatsapp/      WhatsApp bot  — Baileys + DynamoDB
+```
+
+All TypeScript bots share a single root `package.json` / `tsconfig.json`.
+
+---
+
+## Prerequisites
+
+| Requirement | Version |
+|---|---|
+| Node.js | 18+ |
+| Python | 3.12 |
+| AWS credentials | `~/.aws/credentials` or IAM role |
+
+---
+
+## Environment Variables
+
+Copy `.env.example` to `.env` at the repo root and fill in all values.
+
+| Variable | Used by | Description |
+|---|---|---|
+| `AWS_REGION` | whatsapp, api | AWS region for DynamoDB & Lambda (e.g. `ap-southeast-2`) |
+| `AWS_PROFILE` | api | AWS CLI profile name |
+| `ZAPPA_S3_BUCKET` | api | S3 bucket for Zappa deployments |
+| `ZAPPA_ROLE_ARN` | api | IAM role ARN for the Lambda function |
+| `API_BASE_URL` | telegram, whatsapp | Base URL of the deployed Flask API (no trailing slash) |
+| `TELEGRAM_BOT_TOKEN` | telegram | Token from [@BotFather](https://t.me/BotFather) |
+| `DYNAMODB_AUTH_TABLE` | whatsapp | DynamoDB table for Baileys session state |
+| `DYNAMODB_USER_TABLE` | whatsapp | DynamoDB table for user shortform credentials |
+
+---
+
+## Setup
+
+### 1 — API (Flask + Zappa → AWS Lambda)
+
+```bash
+cd api
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+# First deploy
+zappa deploy dev
+
+# Update existing deploy
+zappa update dev
+```
+
+### 2 — Telegram Bot
+
+```bash
+# from repo root
+npm install
+npm run start:telegram
+```
+
+### 3 — WhatsApp Bot
+
+```bash
+# from repo root
+npm install
+npm run start:whatsapp
+```
+
+On first run a **QR code** is printed to the terminal — scan it with WhatsApp to link the session. Auth state is persisted automatically in DynamoDB.
+
+---
+
+## DynamoDB Tables
+
+Create these tables before running the WhatsApp bot:
+
+| Table (env var) | Partition key | Purpose |
+|---|---|---|
+| `DYNAMODB_AUTH_TABLE` | `id` · String | Baileys WhatsApp session |
+| `DYNAMODB_USER_TABLE` | `phoneNumber` · String | User shortform credentials |
+
+---
+
+## WhatsApp Bot Commands
+
+| Command | Description |
+|---|---|
+| `<rollNo> <password>` | Fetch attendance directly (one-off) |
+| `set <id> <rollNo> <password>` | Save a shortform for quick reuse |
+| `<id>` | Fetch attendance using a saved shortform |
+| `skip <id> <hours>` | Simulate skipping N hours — shows new % |
+| `shortforms` | List all saved shortforms |
+| `delete <id>` | Remove a saved shortform |
+
+## Telegram Bot Commands
+
+| Command | Description |
+|---|---|
+| `/start` | Show usage instructions |
+| `/get <rollNo> <password>` | Fetch attendance with an inline refresh button |
+
+---
+
+## API Endpoints
+
+| Method | Path | Params | Description |
+|---|---|---|---|
+| GET | `/attendance` | `student_id`, `password` | Full attendance report |
+| GET | `/compare` | `student_id`, `password` | Subject-wise comparison |
+| GET | `/skip` | `student_id`, `password`, `hours` | Skip simulation |

@@ -1,2 +1,21 @@
-node_modules
-auth_info_baileys
+# Node
+node_modules/
+
+# WhatsApp auth state
+auth_info_baileys/
+
+# Environment variables — NEVER commit secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+*.egg-info/
+dist/
+.eggs/
+
+# macOS
+.DS_Store
